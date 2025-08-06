@@ -169,7 +169,7 @@ connectToServer() {
     try {
         console.log('🔌 Connecting to SyncBeats server...');
             
-            this.socket = io({
+            this.socket = io({"https://my-backend-a27e.onrender.com"
                 reconnection: true,
                 reconnectionAttempts: this.maxReconnectAttempts,
                 reconnectionDelay: 1000,
@@ -475,7 +475,7 @@ joinRoom() {
             const formData = new FormData();
             formData.append('audio', file);
 
-            const response = await fetch('/api/upload', {
+            const response = await fetch('/api/upload', {'https://my-backend-a27e.onrender.com/api/upload'
                 method: 'POST',
                 body: formData
             });
