@@ -169,7 +169,7 @@ connectToServer() {
     try {
         console.log('🔌 Connecting to SyncBeats server...');
             
-            this.socket = io({"https://my-backend-a27e.onrender.com"
+            this.socket = io({"https://my-backend-a27e.onrender.com",
                 reconnection: true,
                 reconnectionAttempts: this.maxReconnectAttempts,
                 reconnectionDelay: 1000,
@@ -1117,6 +1117,7 @@ if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = SyncBeatsApp;
 }
+
 
 
 
