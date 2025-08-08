@@ -1,3 +1,7 @@
+// ===== BACKEND CONFIG =====
+// Change this to your actual Render backend URL
+const BACKEND_URL = "https://my-backend-a27e.onrender.com";
+
 class SyncBeatsApp {
     constructor() {
         this.socket = null;
@@ -169,7 +173,7 @@ connectToServer() {
     try {
         console.log('🔌 Connecting to SyncBeats server...');
             
-            this.socket = io("https://my-backend-a27e.onrender.com",{ 
+            this.socket = io((BACKEND_URL, {,{ 
                 reconnection: true,
                 reconnectionAttempts: this.maxReconnectAttempts,
                 reconnectionDelay: 1000,
@@ -475,7 +479,7 @@ joinRoom() {
             const formData = new FormData();
             formData.append('audio', file);
 
-            const response = await fetch('https://my-backend-a27e.onrender.com/api/upload' , {
+            const response = await fetch(`${BACKEND_URL}/api/upload' , {
                 method: 'POST',
                 body: formData
             });
@@ -1117,6 +1121,7 @@ if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = SyncBeatsApp;
 }
+
 
 
 
