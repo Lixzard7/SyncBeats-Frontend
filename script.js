@@ -173,7 +173,7 @@ connectToServer() {
     try {
         console.log('🔌 Connecting to SyncBeats server...');
             
-            this.socket = io((BACKEND_URL, {,{ 
+            this.socket = io((BACKEND_URL, {
                 reconnection: true,
                 reconnectionAttempts: this.maxReconnectAttempts,
                 reconnectionDelay: 1000,
@@ -1121,6 +1121,7 @@ if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = SyncBeatsApp;
 }
+
 
 
 
