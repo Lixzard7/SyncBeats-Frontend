@@ -277,7 +277,8 @@ connectToServer() {
             // ✅ NEW: Start sync monitoring when playback starts
             if (!this.syncMonitorInterval) {
             this.startSyncMonitoring();
-       
+            }
+        });
 
         this.socket.on('sync-pause', (data) => {
             console.log('⏸️ Sync pause command received');
@@ -1233,6 +1234,7 @@ if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = SyncBeatsApp;
 }
+
 
 
 
