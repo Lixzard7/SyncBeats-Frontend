@@ -18,7 +18,10 @@ class SyncBeatsApp {
         this.maxReconnectAttempts = 5;
         this.heartbeatInterval = null;
         this.roomStartTime = null;
-        
+        this.syncMonitorInterval = null;
+        this.lastSyncCheck = null;
+        this.syncDriftHistory = [];
+  
         this.initializeElements();
         this.bindEvents();
         this.showLoadingScreen();
@@ -1234,6 +1237,7 @@ if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = SyncBeatsApp;
 }
+
 
 
 
