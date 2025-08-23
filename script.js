@@ -269,12 +269,15 @@ connectToServer() {
             this.updateRoomState(data.roomState);
             this.showNotification(`Track loaded: ${data.track.title} 🎵`, 'info');
         });
-
         this.socket.on('sync-play', (data) => {
             console.log('▶️ Sync play command received');
-            this.syncPlay(data.startTime, data.syncTime);
+            this.syncPlay(data.startTime, data.syncTime, data.serverTime); // ✅ Pass server time
             this.updateRoomState(data.roomState);
-        });
+  
+            // ✅ NEW: Start sync monitoring when playback starts
+            if (!this.syncMonitorInterval) {
+            this.startSyncMonitoring();
+       
 
         this.socket.on('sync-pause', (data) => {
             console.log('⏸️ Sync pause command received');
@@ -559,23 +562,78 @@ joinRoom() {
             return 'Streamed Track';
         }
     }
+// ===== AFTER (Replace with this enhanced version) =====
+async loadTrackFromData(trackData) {
+  this.currentTrack = trackData;
+  this.audioPlayer.src = trackData.url;
+  this.elements.nowPlaying.textContent = trackData.title;
+  
+  // Update track metadata
+  let metaText = `${trackData.type === 'upload' ? '📁' : '🌐'} ${trackData.type}`;
+  if (trackData.size) {
+    metaText += ` • ${this.formatFileSize(trackData.size)}`;
+  }
+  this.elements.trackMeta.textContent = metaText;
+  
+  // ✅ NEW: Enhanced preloading for better sync
+  this.audioPlayer.preload = 'auto';
+  this.audioPlayer.load();
+  
+  // ✅ NEW: Wait for audio to be ready for better sync
+  try {
+    await this.waitForAudioReady();
+    console.log('✅ Audio preloaded and ready for sync');
+    this.showNotification('🎵 Track loaded and ready!', 'success');
+  } catch (error) {
+    console.warn('⚠️ Audio preload timeout, will sync anyway');
+  }
+  
+  this.elements.playerSection.style.display = 'block';
+  this.updateControlsState();
+  
+  // ✅ NEW: Start sync monitoring when track is loaded
+  if (this.roomCode) {
+    this.startSyncMonitoring();
+  }
+}
 
-    loadTrackFromData(trackData) {
-        this.currentTrack = trackData;
-        this.audioPlayer.src = trackData.url;
-        this.elements.nowPlaying.textContent = trackData.title;
-        
-        // Update track metadata
-        let metaText = `${trackData.type === 'upload' ? '📁' : '🌐'} ${trackData.type}`;
-        if (trackData.size) {
-            metaText += ` • ${this.formatFileSize(trackData.size)}`;
+// ✅ NEW: Helper method to wait for audio readiness
+waitForAudioReady(timeout = 3000) {
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error('Audio preload timeout'));
+    }, timeout);
+
+    const checkReady = () => {
+      if (this.audioPlayer.readyState >= 3) { // HAVE_FUTURE_DATA or better
+        clearTimeout(timeoutId);
+        resolve();
+      } else {
+        setTimeout(checkReady, 100);
+      }
+    };
+
+    if (this.audioPlayer.readyState >= 3) {
+      clearTimeout(timeoutId);
+      resolve();
+    } else {
+      this.audioPlayer.addEventListener('canplay', () => {
+        clearTimeout(timeoutId);
+        resolve();
+      }, { once: true });
+      
+      this.audioPlayer.addEventListener('loadeddata', () => {
+        if (this.audioPlayer.readyState >= 3) {
+          clearTimeout(timeoutId);
+          resolve();
         }
-        this.elements.trackMeta.textContent = metaText;
-        
-        this.elements.playerSection.style.display = 'block';
-        this.updateControlsState();
+      }, { once: true });
+      
+      checkReady();
     }
-
+  });
+}
+   
     togglePlay() {
         if (!this.currentTrack) {
             this.showNotification('No track loaded! Please upload or stream a track first. 🎵', 'error');
@@ -601,32 +659,86 @@ joinRoom() {
             });
         }
     }
+// ===== AFTER (Replace with this enhanced version) =====
+syncPlay(startTime, syncTime, serverTime = null) {
+  if (!this.currentTrack) return;
 
-    syncPlay(startTime, syncTime) {
-        if (!this.currentTrack) return;
+  const now = Date.now();
+  
+  // ✅ NEW: Calculate client-server time difference for better sync
+  let timeOffset = 0;
+  if (serverTime) {
+    timeOffset = now - serverTime; // Estimate network latency
+    console.log(`🕐 Estimated network latency: ${timeOffset}ms`);
+  }
+  
+  // ✅ ENHANCED: Adjust sync time based on network latency
+  const adjustedSyncTime = syncTime - (timeOffset / 2); // Compensate for round-trip
+  const delay = Math.max(0, adjustedSyncTime - now);
+  
+  if (this.syncTimeout) {
+    clearTimeout(this.syncTimeout);
+  }
 
-        const now = Date.now();
-        const delay = Math.max(0, syncTime - now);
-        
-        if (this.syncTimeout) {
-            clearTimeout(this.syncTimeout);
-        }
+  // ✅ NEW: Pre-load audio to reduce play delay
+  if (this.audioPlayer.readyState < 3) {
+    this.audioPlayer.load();
+  }
 
-        this.syncTimeout = setTimeout(async () => {
-            try {
-                this.audioPlayer.currentTime = startTime;
-                await this.audioPlayer.play();
-                this.isPlaying = true;
-                this.elements.playBtn.textContent = '⏸️';
-                this.elements.playBtn.title = 'Pause';
-                console.log('✅ Synced play at:', startTime);
-            } catch (error) {
-                console.error('❌ Play error:', error);
-                this.showNotification('Playback failed! Check audio format. 😞', 'error');
-            }
-        }, delay);
+  console.log(`⏱️ Sync play: startTime=${startTime}s, delay=${delay}ms, offset=${timeOffset}ms`);
+
+  this.syncTimeout = setTimeout(async () => {
+    try {
+      // ✅ ENHANCED: More precise time setting with validation
+      const targetTime = Math.max(0, startTime);
+      
+      // ✅ NEW: Only set currentTime if significantly different
+      if (Math.abs(this.audioPlayer.currentTime - targetTime) > 0.1) {
+        this.audioPlayer.currentTime = targetTime;
+      }
+      
+      // ✅ NEW: Use play() with promise handling and retry logic
+      const playPromise = this.audioPlayer.play();
+      
+      if (playPromise !== undefined) {
+        await playPromise;
+      }
+      
+      this.isPlaying = true;
+      this.elements.playBtn.textContent = '⏸️';
+      this.elements.playBtn.title = 'Pause';
+      console.log(`✅ Synced play at: ${targetTime}s (actual: ${this.audioPlayer.currentTime}s)`);
+      
+    } catch (error) {
+      console.error('❌ Play error:', error);
+      // ✅ NEW: Retry mechanism for failed playback
+      setTimeout(() => {
+        this.retryPlay(startTime);
+      }, 100);
     }
+  }, delay);
+}
 
+// ✅ NEW: Add retry mechanism method
+retryPlay(startTime) {
+  console.log('🔄 Retrying play...');
+  try {
+    this.audioPlayer.currentTime = startTime;
+    this.audioPlayer.play().then(() => {
+      this.isPlaying = true;
+      this.elements.playBtn.textContent = '⏸️';
+      this.elements.playBtn.title = 'Pause';
+      console.log('✅ Retry play successful');
+    }).catch(error => {
+      console.error('❌ Retry play failed:', error);
+      this.showNotification('Playback failed! Please try again. 😞', 'error');
+    });
+  } catch (error) {
+    console.error('❌ Retry play error:', error);
+  }
+}
+//
+  
     syncPause(currentTime) {
         if (!this.currentTrack) return;
 
@@ -1121,6 +1233,7 @@ if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = SyncBeatsApp;
 }
+
 
 
 
