@@ -740,7 +740,7 @@ joinRoom() {
             const formData = new FormData();
             formData.append('audio', file);
 
-            const response = await fetch('/api/upload', {
+            const response = await fetch('https://my-backend-a27e.onrender.com/api/upload', {
                 method: 'POST',
                 body: formData
             });
@@ -1692,6 +1692,7 @@ if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = SyncBeatsApp;
 }
+
 
 
 
