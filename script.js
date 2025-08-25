@@ -331,7 +331,45 @@ connectToServer() {
             this.heartbeatInterval = null;
         }
     }
+        startSyncMonitoring() {
+        // Clear existing monitoring
+        if (this.syncMonitorInterval) {
+            clearInterval(this.syncMonitorInterval);
+        }
 
+        // ✅ NEW: Monitor sync every 5 seconds and auto-correct drift
+        this.syncMonitorInterval = setInterval(() => {
+            if (!this.roomCode || !this.currentTrack || !this.socket?.connected) {
+                return;
+            }
+
+            // Request current room state for sync check
+            this.socket.emit('get-sync-state', (response) => {
+                if (response.success && response.roomState.isPlaying) {
+                    const serverTime = response.roomState.currentTime;
+                    const clientTime = this.audioPlayer.currentTime;
+                    const timeDrift = Math.abs(serverTime - clientTime);
+                    
+                    console.log(`🎯 Sync check - Server: ${serverTime.toFixed(2)}s, Client: ${clientTime.toFixed(2)}s, Drift: ${timeDrift.toFixed(2)}s`);
+                    
+                    // ✅ Auto-correct if drift is more than 200ms
+                    if (timeDrift > 0.2) {
+                        console.log('🔧 Auto-correcting sync drift...');
+                        this.audioPlayer.currentTime = serverTime;
+                        this.showNotification('🎯 Sync corrected', 'info');
+                    }
+                }
+            });
+        }, 5000);
+    }
+
+    stopSyncMonitoring() {
+        if (this.syncMonitorInterval) {
+            clearInterval(this.syncMonitorInterval);
+            this.syncMonitorInterval = null;
+        }
+    }
+    
     createRoom() {
         if (!this.socket || !this.socket.connected) {
             this.showNotification('Not connected to server! Please wait... 🔄', 'error');
@@ -1237,6 +1275,7 @@ if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = SyncBeatsApp;
 }
+
 
 
 
