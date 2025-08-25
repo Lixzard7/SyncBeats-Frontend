@@ -13,6 +13,12 @@ class SyncBeatsApp {
         this.currentTrack = null;
         this.users = new Map();
         this.seeking = false;
+        //change
+        this.queue = [];
+        this.currentTrackIndex = 0;
+        this.repeatMode = 'off'; // 'off', 'one', 'all'
+        this.shuffleMode = false;
+        //change
         this.syncTimeout = null;
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 5;
@@ -43,6 +49,15 @@ class SyncBeatsApp {
             uploadBtn: document.getElementById('uploadBtn'),
             urlBtn: document.getElementById('urlBtn'),
             uploadArea: document.getElementById('uploadArea'),
+            //change
+            clearQueueBtn: document.getElementById('clearQueueBtn'),
+            queueSection: document.getElementById('queueSection'),
+            queueList: document.getElementById('queueList'),
+            queueCount: document.getElementById('queueCount'),
+            queueDuration: document.getElementById('queueDuration'),
+            shuffleBtn: document.getElementById('shuffleBtn'),
+            repeatBtn: document.getElementById('repeatBtn'),
+            //change
             playerSection: document.getElementById('playerSection'),
             nowPlaying: document.getElementById('nowPlaying'),
             trackMeta: document.getElementById('trackMeta'),
@@ -78,8 +93,12 @@ class SyncBeatsApp {
         this.elements.uploadBtn.addEventListener('click', () => this.elements.audioFile.click());
         this.elements.urlBtn.addEventListener('click', () => this.handleStreamURL());
         this.elements.audioFile.addEventListener('change', (e) => this.handleFileUpload(e));
-        this.elements.uploadArea.addEventListener('click', () => this.elements.audioFile.click());
-        
+        this.elements.clearQueueBtn.addEventListener('click', () => this.clearQueue());
+        //change
+        // Queue control events
+        this.elements.shuffleBtn.addEventListener('click', () => this.toggleShuffle());
+        this.elements.repeatBtn.addEventListener('click', () => this.toggleRepeat());
+        //change
         // Player controls
         this.elements.playBtn.addEventListener('click', () => this.togglePlay());
         this.elements.prevBtn.addEventListener('click', () => this.previousTrack());
@@ -352,8 +371,73 @@ connectToServer() {
             this.showNotification('Connection failed. Retrying... 🔄', 'error');
             this.showConnectionToast('Connection failed');
         });
-    }
+        //change
+            this.socket.on('queue-updated', (data) => {
+            console.log('🎼 Queue updated:', data.action);
+            this.queue = data.queue;
+            this.currentTrackIndex = data.currentTrackIndex;
+    
+            if (data.currentTrack) {
+                this.currentTrack = data.currentTrack;
+                if (data.action === 'added' && this.queue.length === 1) {
+                    // First track added, load it
+                    this.loadTrackFromData(data.currentTrack);
+               }
+            }
+    
+            this.updateQueueDisplay();
+            this.updateRoomState(data.roomState);
+    
+            if (data.action === 'added') {
+                this.showNotification(`Added to queue: ${data.track.title} 🎵`, 'success');
+            } else if (data.action === 'cleared') {
+                this.showNotification('Queue cleared! 🗑️', 'info');
+                this.elements.playerSection.style.display = 'none';
+           }
+        });
 
+        this.socket.on('track-changed', (data) => {
+            console.log('🎵 Track changed via queue:', data.action);
+            this.currentTrack = data.track;
+            this.queue = data.queue;
+            this.currentTrackIndex = data.currentTrackIndex;
+    
+            if (this.currentTrack) {
+                 this.loadTrackFromData(this.currentTrack);
+                 this.showNotification(`Now playing: ${this.currentTrack.title} 🎵`, 'info');
+            } 
+    
+             this.updateQueueDisplay();
+             this.updateRoomState(data.roomState);
+       });
+
+     this.socket.on('repeat-mode-changed', (data) => {
+       this.repeatMode = data.repeatMode;
+       this.updateRepeatButton();
+       this.showNotification(`Repeat: ${this.getRepeatModeText()} 🔁`, 'info');
+       });
+
+       this.socket.on('shuffle-mode-changed', (data) => {
+        this.shuffleMode = data.shuffleMode;
+        this.updateShuffleButton();
+        this.showNotification(`Shuffle: ${this.shuffleMode ? 'On' : 'Off'} 🔀`, 'info');
+    });
+
+    this.socket.on('set-current-track', (data) => {
+        this.currentTrack = data.track;
+        this.queue = data.queue;
+        this.currentTrackIndex = data.currentTrackIndex;
+        
+        if (this.currentTrack) {
+            this.loadTrackFromData(this.currentTrack);
+        }
+        
+        this.updateQueueDisplay();
+        this.updateRoomState(data.roomState);
+    });
+        //change
+    }
+    
     startHeartbeat() {
         this.heartbeatInterval = setInterval(() => {
             if (this.socket && this.socket.connected) {
@@ -537,25 +621,71 @@ joinRoom() {
         }
     }
 
-    async handleFileUpload(event) {
-        const file = event.target.files[0];
-        if (!file || !file.type.startsWith('audio/')) {
-            this.showNotification('Please select a valid audio file! 🎵', 'error');
-            return;
+//    async handleFileUpload(event) {
+  //      const file = event.target.files[0];
+    //    if (!file || !file.type.startsWith('audio/')) {
+      //      this.showNotification('Please select a valid audio file! 🎵', 'error');
+        //    return;
+        //}
+
+        //if (!this.isHost) {
+          //  this.showNotification('Only the host can upload tracks! 👑', 'error');
+            //return;
+       // }
+
+        //if (file.size > 100 * 1024 * 1024) { // 100MB
+          //  this.showNotification('File too large! Maximum size is 100MB. 📁', 'error');
+            //return;
+        //}
+
+        //await this.uploadFile(file);
+    //}
+    //change
+        async handleFileUpload(event) {
+        const files = Array.from(event.target.files);
+    
+        if (files.length === 0) {
+           this.showNotification('Please select audio files! 🎵', 'error');
+           return;
         }
 
         if (!this.isHost) {
             this.showNotification('Only the host can upload tracks! 👑', 'error');
             return;
-        }
+       }
 
-        if (file.size > 100 * 1024 * 1024) { // 100MB
-            this.showNotification('File too large! Maximum size is 100MB. 📁', 'error');
+         // Filter valid audio files
+        const audioFiles = files.filter(file => file.type.startsWith('audio/'));
+        const oversizedFiles = audioFiles.filter(file => file.size > 100 * 1024 * 1024);
+        const validFiles = audioFiles.filter(file => file.size <= 100 * 1024 * 1024);
+    
+        if (oversizedFiles.length > 0) {
+            this.showNotification(`${oversizedFiles.length} file(s) too large! Max 100MB each. 📏`, 'warning');
+        
+        }
+    
+        if (validFiles.length === 0) {
+            this.showNotification('No valid audio files selected! 🎵', 'error');
             return;
-        }
+       }
 
-        await this.uploadFile(file);
+       this.showNotification(`Uploading ${validFiles.length} track(s)... ⏳`, 'info');
+
+       // Upload files sequentially to avoid server overload
+        for (let i = 0; i < validFiles.length; i++) {
+             const file = validFiles[i];
+            try {
+                await this.uploadFileToQueue(file, i + 1, validFiles.length);
+                await new Promise(resolve => setTimeout(resolve, 500)); // Small delay between uploads
+            } catch (error) {
+               console.error(`Failed to upload ${file.name}:`, error);
+               this.showNotification(`Failed to upload: ${file.name} ❌`, 'error');
+            }
+       }
+    
+        this.showNotification(`Successfully added ${validFiles.length} track(s) to queue! 🎉`, 'success');
     }
+    //change
 
     async uploadFile(file) {
         try {
@@ -601,7 +731,52 @@ joinRoom() {
             this.elements.audioFile.value = '';
         }
     }
+//change
+     async uploadFileToQueue(file, index, total) {
+        try {
+            this.setButtonLoading(this.elements.uploadBtn, true);
+            this.elements.uploadBtn.textContent = `Uploading (${index}/${total})...`;
 
+            const formData = new FormData();
+            formData.append('audio', file);
+
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                const trackData = {
+                    title: result.file.originalName,
+                    url: result.file.url,
+                    type: 'upload',
+                    size: result.file.size,
+                    uploadedAt: Date.now()
+                };
+
+                this.socket.emit('add-to-queue', trackData, (response) => {
+                    if (response && response.success) {
+                        this.showNotification(`Track uploaded: ${trackData.title} 🎵`, 'success');
+                    } else {
+                        this.showNotification('Failed to add track to queue', 'error');
+                    }
+                });
+            } else {
+                this.showNotification(`Upload failed: ${result.error}`, 'error');
+            }
+        } catch (error) {
+            console.error('❌ Upload error:', error);
+            this.showNotification('Upload failed! Please try again. 😞', 'error');
+        } finally {
+            this.setButtonLoading(this.elements.uploadBtn, false);
+            this.elements.uploadBtn.textContent = '📁 Upload Track';
+            // Reset file input
+            this.elements.audioFile.value = '';
+        }
+    }
+//change    
     handleStreamURL() {
         if (!this.isHost) {
             this.showNotification('Only the host can set tracks! 👑', 'error');
@@ -619,7 +794,7 @@ joinRoom() {
                         type: 'stream'
                     };
 
-                    this.socket.emit('set-track', trackData, (response) => {
+                    this.socket.emit('add-to-queue', trackData, (response) => {
                         if (response && response.success) {
                             this.showNotification(`Stream URL set: ${trackData.title} 🌐`, 'success');
                         } else {
@@ -919,7 +1094,11 @@ retryPlay(startTime) {
             this.showNotification('Only the host can change tracks! 👑', 'error');
             return;
         }
-        this.showNotification('Previous track - Coming soon! ⏮️', 'info');
+        this.socket.emit('previous-track', (response) => {
+             if (response && !response.success) {
+                 this.showNotification(response.error || 'No previous track', 'error');
+            }
+        });
     }
 
     nextTrack() {
@@ -927,9 +1106,13 @@ retryPlay(startTime) {
             this.showNotification('Only the host can change tracks! 👑', 'error');
             return;
         }
-        this.showNotification('Next track - Coming soon! ⏭️', 'info');
-    }
-
+    
+        this.socket.emit('next-track', (response) => {
+             if (response && !response.success) {
+                 this.showNotification(response.error || 'No next track', 'error');
+             }
+        });
+}
     updateProgress() {
         if (!this.audioPlayer.duration || this.seeking) return;
 
@@ -992,11 +1175,15 @@ retryPlay(startTime) {
         this.elements.playBtn.title = 'Play';
         
         if (this.isHost) {
-            this.socket.emit('pause');
+             this.socket.emit('next-track', (response) => {
+               if (!response || !response.success) {
+                   // No next track, just pause
+                   this.socket.emit('pause');
+                   this.showNotification('Playlist ended! 🎵', 'info');
+                }
+            });
         }
-        
-        this.showNotification('Track ended! 🎵', 'info');
-    }
+   }
 
     updateRoomState(roomState) {
         if (!roomState) return;
@@ -1207,7 +1394,196 @@ retryPlay(startTime) {
         
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
     }
+//change
+    updateQueueDisplay() {
+        const queueList = this.elements.queueList;
+        const queueCount = this.elements.queueCount;
+        const queueDuration = this.elements.queueDuration;
+        
+        // Update queue count
+        queueCount.textContent = `${this.queue.length} track${this.queue.length !== 1 ? 's' : ''}`;
+        
+        // Calculate total duration (estimate for uploaded files)
+        let totalDuration = 0;
+        queueDuration.textContent = '~' + this.formatTime(totalDuration);
+        
+        // Clear current list
+        queueList.innerHTML = '';
+        
+        if (this.queue.length === 0) {
+            const emptyState = document.createElement('div');
+            emptyState.className = 'queue-empty';
+            emptyState.innerHTML = `
+                <div class="empty-icon">🎵</div>
+                <div class="empty-text">No tracks in queue</div>
+                <div class="empty-subtitle">Upload or add tracks to get started</div>
+            `;
+            queueList.appendChild(emptyState);
+            return;
+        }
+        
+        // Add queue items
+        this.queue.forEach((track, index) => {
+            const queueItem = document.createElement('div');
+            queueItem.className = `queue-item ${index === this.currentTrackIndex ? 'current' : ''}`;
+            
+            queueItem.innerHTML = `
+                <div class="queue-item-info">
+                    <div class="queue-item-index">${index + 1}</div>
+                    <div class="queue-item-details">
+                        <div class="queue-item-title">${track.title}</div>
+                        <div class="queue-item-meta">
+                            ${track.type === 'upload' ? '📁' : '🌐'} ${track.type}
+                            ${track.size ? ' • ' + this.formatFileSize(track.size) : ''}
+                        </div>
+                    </div>
+                </div>
+                <div class="queue-item-controls">
+                    ${index === this.currentTrackIndex ? 
+                        '<div class="current-indicator">🎵</div>' : 
+                        `<button class="queue-play-btn" onclick="syncBeatsApp.playQueueTrack(${index})" title="Play this track">▶️</button>`
+                    }
+                    ${this.isHost ? 
+                        `<button class="queue-remove-btn" onclick="syncBeatsApp.removeQueueTrack('${track.id}')" title="Remove from queue">🗑️</button>` : 
+                        ''
+                    }
+                </div>
+            `;
+            
+            queueList.appendChild(queueItem);
+        });
+    }
 
+    playQueueTrack(index) {
+        if (!this.isHost) {
+            this.showNotification('Only the host can change tracks! 👑', 'error');
+            return;
+        }
+        
+        if (index >= 0 && index < this.queue.length) {
+            this.socket.emit('set-current-track', index, (response) => {
+                if (response && response.success) {
+                    this.showNotification(`Playing: ${this.queue[index].title} 🎵`, 'success');
+                } else {
+                    this.showNotification('Failed to change track', 'error');
+                }
+            });
+        }
+    }
+
+    removeQueueTrack(trackId) {
+        if (!this.isHost) {
+            this.showNotification('Only the host can manage queue! 👑', 'error');
+            return;
+        }
+        
+        this.socket.emit('remove-from-queue', trackId, (response) => {
+            if (response && response.success) {
+                this.showNotification('Track removed from queue 🗑️', 'info');
+            } else {
+                this.showNotification('Failed to remove track', 'error');
+            }
+        });
+    }
+
+    clearQueue() {
+        if (!this.isHost) {
+            this.showNotification('Only the host can clear queue! 👑', 'error');
+            return;
+        }
+        
+        if (this.queue.length === 0) {
+            this.showNotification('Queue is already empty! 🎵', 'info');
+            return;
+        }
+        
+        if (confirm('Are you sure you want to clear the entire queue?')) {
+            this.socket.emit('clear-queue', (response) => {
+                if (response && response.success) {
+                    this.showNotification('Queue cleared! 🗑️', 'success');
+                } else {
+                    this.showNotification('Failed to clear queue', 'error');
+                }
+            });
+        }
+    }
+
+    toggleShuffle() {
+        if (!this.isHost) {
+            this.showNotification('Only the host can control queue! 👑', 'error');
+            return;
+        }
+        
+        this.socket.emit('shuffle-queue', (response) => {
+            if (response && response.success) {
+                this.shuffleMode = response.shuffleMode;
+                this.updateShuffleButton();
+            } else {
+                this.showNotification('Failed to toggle shuffle', 'error');
+            }
+        });
+    }
+
+    toggleRepeat() {
+        if (!this.isHost) {
+            this.showNotification('Only the host can control queue! 👑', 'error');
+            return;
+        }
+        
+        const modes = ['off', 'all', 'one'];
+        const currentIndex = modes.indexOf(this.repeatMode);
+        const nextMode = modes[(currentIndex + 1) % modes.length];
+        
+        this.socket.emit('set-repeat-mode', nextMode, (response) => {
+            if (response && response.success) {
+                this.repeatMode = response.repeatMode;
+                this.updateRepeatButton();
+            } else {
+                this.showNotification('Failed to change repeat mode', 'error');
+            }
+        });
+    }
+
+    updateShuffleButton() {
+        const shuffleBtn = this.elements.shuffleBtn;
+        if (this.shuffleMode) {
+            shuffleBtn.classList.add('active');
+            shuffleBtn.textContent = '🔀 Shuffled';
+        } else {
+            shuffleBtn.classList.remove('active');
+            shuffleBtn.textContent = '🔀 Shuffle';
+        }
+    }
+
+    updateRepeatButton() {
+        const repeatBtn = this.elements.repeatBtn;
+        repeatBtn.classList.remove('active', 'repeat-one');
+        
+        switch (this.repeatMode) {
+            case 'off':
+                repeatBtn.textContent = '🔁 Repeat';
+                break;
+            case 'all':
+                repeatBtn.classList.add('active');
+                repeatBtn.textContent = '🔁 Repeat All';
+                break;
+            case 'one':
+                repeatBtn.classList.add('active', 'repeat-one');
+                repeatBtn.textContent = '🔂 Repeat One';
+                break;
+        }
+    }
+
+    getRepeatModeText() {
+        switch (this.repeatMode) {
+            case 'off': return 'Off';
+            case 'all': return 'All';
+            case 'one': return 'One';
+            default: return 'Off';
+        }
+    }
+
+//change
     handleBeforeUnload() {
         if (this.socket && this.socket.connected) {
             this.socket.disconnect();
@@ -1316,6 +1692,7 @@ if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = SyncBeatsApp;
 }
+
 
 
 
