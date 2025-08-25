@@ -73,47 +73,7 @@ class SyncBeatsApp {
         this.elements.joinBtn.addEventListener('click', () => this.joinRoom());
         this.elements.createRoomBtn.addEventListener('click', () => this.createRoom());
         this.elements.leaveRoomBtn.addEventListener('click', () => this.leaveRoom());
-        leaveRoom() {
-        // ✅ NEW: Stop sync monitoring when leaving room
-        this.stopSyncMonitoring();
-        
-        if (!this.socket || !this.socket.connected) {
-            this.showNotification('Not connected to server!', 'error');
-            return;
-        }
-
-        this.socket.emit('leave-room', (response) => {
-            if (response && response.success) {
-                this.roomCode = null;
-                this.isHost = false;
-                this.roomStartTime = null;
-                this.currentTrack = null;
-                
-                // Reset UI
-                this.hideRoomInfo();
-                this.stopRoomTimer();
-                this.elements.roomCodeInput.value = '';
-                this.elements.playerSection.style.display = 'none';
-                this.elements.nowPlaying.textContent = 'No track selected';
-                this.elements.trackMeta.textContent = '';
-                this.elements.userList.innerHTML = '';
-                this.elements.userCount.textContent = '0 users';
-                
-                // Reset audio player
-                this.audioPlayer.pause();
-                this.audioPlayer.src = '';
-                this.isPlaying = false;
-                this.elements.playBtn.textContent = '▶️';
-                
-                this.updateControlsState();
-                this.showNotification('Left the room! 👋', 'info');
-            } else {
-                const errorMsg = response ? response.error : 'Unknown error occurred';
-                this.showNotification(`Failed to leave room: ${errorMsg}`, 'error');
-            }
-        });
-    }
-        
+       
         // Upload events
         this.elements.uploadBtn.addEventListener('click', () => this.elements.audioFile.click());
         this.elements.urlBtn.addEventListener('click', () => this.handleStreamURL());
@@ -167,7 +127,48 @@ class SyncBeatsApp {
         // Visibility change
         document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
     }
+    //
+    leaveRoom() {
+        // ✅ NEW: Stop sync monitoring when leaving room
+        this.stopSyncMonitoring();
+        
+        if (!this.socket || !this.socket.connected) {
+            this.showNotification('Not connected to server!', 'error');
+            return;
+        }
 
+        this.socket.emit('leave-room', (response) => {
+            if (response && response.success) {
+                this.roomCode = null;
+                this.isHost = false;
+                this.roomStartTime = null;
+                this.currentTrack = null;
+                
+                // Reset UI
+                this.hideRoomInfo();
+                this.stopRoomTimer();
+                this.elements.roomCodeInput.value = '';
+                this.elements.playerSection.style.display = 'none';
+                this.elements.nowPlaying.textContent = 'No track selected';
+                this.elements.trackMeta.textContent = '';
+                this.elements.userList.innerHTML = '';
+                this.elements.userCount.textContent = '0 users';
+                
+                // Reset audio player
+                this.audioPlayer.pause();
+                this.audioPlayer.src = '';
+                this.isPlaying = false;
+                this.elements.playBtn.textContent = '▶️';
+                
+                this.updateControlsState();
+                this.showNotification('Left the room! 👋', 'info');
+            } else {
+                const errorMsg = response ? response.error : 'Unknown error occurred';
+                this.showNotification(`Failed to leave room: ${errorMsg}`, 'error');
+            }
+        });
+    }
+//
     showLoadingScreen() {
         this.elements.loadingScreen.style.display = 'flex';
         this.elements.mainApp.style.display = 'none';
@@ -1315,6 +1316,7 @@ if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = SyncBeatsApp;
 }
+
 
 
 
