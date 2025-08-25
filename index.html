@@ -103,10 +103,13 @@
                     <input type="file" id="audioFile" accept="audio/*" style="display: none;">
                     <div class="upload-buttons">
                         <button class="btn btn-secondary" id="uploadBtn">
-                            📁 Upload Track
+                            📁 Add To Queue
                         </button>
                         <button class="btn btn-secondary" id="urlBtn">
                             🌐 Stream URL
+                        </button>
+                        <button class="btn btn-secondary" id="clearQueueBtn">
+                            🗑️ Clear Queue
                         </button>
                     </div>
                     
@@ -122,6 +125,34 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Music Queue -->
+        <div class="queue-section" id="queueSection">
+            <div class="queue-header">
+                <h4>🎼 Music Queue</h4>
+                <div class="queue-info">
+                    <span id="queueCount">0 tracks</span>
+                    <span class="queue-duration" id="queueDuration">0:00 total</span>
+                </div>
+            </div>
+            
+            <div class="queue-controls">
+                <button class="btn-small" id="shuffleBtn" title="Shuffle Queue">
+                    🔀 Shuffle
+                </button>
+                <button class="btn-small" id="repeatBtn" title="Repeat Mode">
+                    🔁 Repeat Off
+                </button>
+            </div>
+            
+            <div class="queue-list" id="queueList">
+                <div class="queue-empty">
+                    <div class="empty-icon">🎵</div>
+                    <div class="empty-text">No tracks in queue</div>
+                    <div class="empty-subtitle">Add songs to get started!</div>
+                </div>
+            </div>
+        </div>               
                 
                 <!-- Music Player -->
                 <div class="player-section" id="playerSection" style="display: none;">
@@ -265,6 +296,7 @@
     
 </body>
 </html>
+
 
 
 
